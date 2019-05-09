@@ -61,28 +61,31 @@ public class NegativeClaimGenerator {
     	}
     	if (t1 == -1)
     		return null;
-    	if (t1 < tokens.size() -1 && tokens.get(t1+1).originalText().equalsIgnoreCase("n't")) {
+    	Token t1Token = tokens.get(t1);
+    	Token prevToken = t1Token.previous();
+    	Token nextToken = t1Token.next();
+		String prevTokenStr = prevToken.originalText().toLowerCase();
+		String nextTokenStr = nextToken.originalText().toLowerCase();
+		String nextTokenTag = (t1 + 1 < posTags.size())? posTags.get(t1+1) : "";
+		
+    	String t1Lemma = t1Token.lemma().toLowerCase();
+    	if (nextTokenStr.equalsIgnoreCase("n't")) {
 			endInNT = true;
 		}
     	
     	/*
     	 *  3) If T1 is followed or preceded by one of several negation strings 
-    	 *  (e.g., “no”, “not”’), remove this negation and finish.
+    	 *  (e.g., "no", "not"), remove this negation and finish.
     	 */
-    	int negationToken = -1;
-    	if (t1 >= 1) {
-    		String prevToken = tokens.get(t1 - 1).originalText();
-    		if (prevToken.equalsIgnoreCase("not") || prevToken.equalsIgnoreCase("no"))
-    			negationToken = t1 - 1;
+    	Token negationToken = null;
+		if (prevTokenStr.equals("not") || prevTokenStr.equals("no")) {
+			negationToken = prevToken;
+		} else if (nextTokenStr.equals("not") || nextTokenStr.equals("no")) {
+			negationToken = nextToken;
     	}
-    	if (negationToken == -1 && t1 + 1 < tokens.size()) {
-    		String nextToken = tokens.get(t1 + 1).originalText();
-    		if (nextToken.equals("not") || nextToken.equals("no"))
-    			negationToken = t1 + 1;
-    	}
-    	if (negationToken != -1) {
-    		Token t = tokens.get(negationToken);
-    		return claim.substring(0, t.beginPosition() - t.before().length()) + claim.substring(t.endPosition());
+    	if (negationToken != null) {
+    		return claim.substring(0, negationToken.beginPosition() - negationToken.before().length()) 
+    				+ claim.substring(negationToken.endPosition());
     	}
 
     	/*
@@ -93,11 +96,14 @@ public class NegativeClaimGenerator {
     		// can't is tokenized to "ca" and "n't", so we have to add an n
     		String fix = tokens.get(t1).originalText().equalsIgnoreCase("ca")? "n" : "";
     		Token ntToken = tokens.get(t1 + 1);
-    		return claim.substring(0, ntToken.beginPosition() - ntToken.before().length()) + fix + claim.substring(ntToken.endPosition());
+    		return claim.substring(0, ntToken.beginPosition() - ntToken.before().length()) 
+    				+ fix 
+    				+ claim.substring(ntToken.endPosition());
     	}
     	
     	/*
     	 * 5) If T1 is a modal verb, is a form of the verb "to be" (e.g. "is" or "are"),
+		 * or is a form of the verb "to do" or "to have" followed by another verb (V.. or IN),
     	 * or is followed by a gerund, then insert the word "not" after T1 and finish
     	 *
     	 * Note that this is slightly different than step 5 in the paper, 
@@ -107,7 +113,9 @@ public class NegativeClaimGenerator {
     	 * "workable".
     	 */
     	if (t1Tag.equals("MD") 
-    			|| tokens.get(t1).lemma().equalsIgnoreCase("be")
+    			|| t1Lemma.equals("be")
+    			|| ((t1Lemma.equals("do") || t1Lemma.equals("have"))
+    					&& (nextTokenTag.startsWith("V") || nextTokenTag.equals("IN")))
     			|| (t1 < posTags.size() - 1 
     					&& posTags.get(t1 + 1).equals("VBG"))) {
     		StringBuilder sb = new StringBuilder(claim);
